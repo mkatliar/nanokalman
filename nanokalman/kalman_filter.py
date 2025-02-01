@@ -13,8 +13,6 @@ class KalmanFilter:
         self._ny = ny
         self._state_estimate = np.zeros(nx)
         self._state_covariance = np.zeros((nx, nx))
-        self._process_noise_covariance = np.zeros((nx, nx))
-        self._measurement_noise_covariance = np.zeros((ny, ny))
         self._S = np.zeros((ny, ny))
         self._K = np.zeros((nx, ny))
 
@@ -54,52 +52,29 @@ class KalmanFilter:
         """
         return self._process_noise_covariance
 
-    def set_process_noise_covariance(self, val: np.ndarray):
-        """
-        @brief Set process noise covariance
-        """
-        if val.shape != self._process_noise_covariance.shape:
-            raise ValueError("Invalid argument shape")
-
-        self._process_noise_covariance = val
-
-    def get_measurement_noise_covariance(self) -> np.ndarray:
-        """
-        @brief Get measurement noise covariance
-        """
-        return self._measurement_noise_covariance
-
-    def set_measurement_noise_covariance(self, val: np.ndarray):
-        """
-        @brief Set measurement noise covariance
-        """
-        if val.shape != self._measurement_noise_covariance.shape:
-            raise ValueError("Invalid argument shape")
-
-        self._measurement_noise_covariance = val
-
-    def predict(self, A: np.ndarray, B: np.ndarray, u: np.ndarray):
+    def predict(self, x_next: np.ndarray, A: np.ndarray, Q: np.ndarray):
         """
         @brief Update state estimate based on a linear model and control input.
 
-        @param A linear model matrix A
-        @param B linear model matrix B
-        @param u control input
+        @param x_next next state computed from the system dynamics
+        @param A linear model matrix A = d(f)/dx, where f is the system dynamics
+        @param Q process noise covariance
         """
         if A.shape != (self._nx, self._nx):
             raise ValueError("Invalid shape of A")
 
-        self._state_estimate = np.dot(A, self._state_estimate) + np.dot(B, u)
-        self._state_covariance = np.linalg.multi_dot((A, self._state_covariance, np.transpose(A))) + self._process_noise_covariance
+        self._state_estimate = x_next
+        self._state_covariance = np.linalg.multi_dot((A, self._state_covariance, np.transpose(A))) + Q
 
-    def update(self, y: np.ndarray, C: np.ndarray):
+    def update(self, y: np.ndarray, C: np.ndarray, R: np.ndarray):
         """
         @brief Update state estimate based on measurement residual and sensitivities.
 
         @param y measurement residual, the difference between measured and predicted system output.
         @param C output sensitivity matrix, C = d(y_pred)/dx, where y_pred is the predicted system output for state x.
+        @param R measurement noise covariance
         """
-        self._S = self._measurement_noise_covariance + np.linalg.multi_dot((C, self._state_covariance, np.transpose(C)))
+        self._S = R + np.linalg.multi_dot((C, self._state_covariance, np.transpose(C)))
         S_chol = np.linalg.cholesky(self._S)
 
         # Calculate K = stateCovariance_ * trans(C) * inv(S)

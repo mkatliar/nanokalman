@@ -2,7 +2,7 @@
 This code is based on https://gitlab.syscop.de/mikhail.katliar/tmpc/-/blob/master/test/estimation/KalmanFilterTest.cpp
 """
 
-from kalman_filter import KalmanFilter
+from nanokalman import KalmanFilter
 import numpy as np
 import pytest
 import sys
@@ -81,8 +81,6 @@ def P0() -> np.ndarray:
 @pytest.fixture
 def kalman(nx: int, ny: int, Q: np.ndarray, R: np.ndarray, x_hat0: np.ndarray, P0: np.ndarray) -> KalmanFilter:
     kalman = KalmanFilter(nx=nx, ny=ny)
-    kalman.set_process_noise_covariance(Q)
-    kalman.set_measurement_noise_covariance(R)
     kalman.set_state_estimate(x_hat0)
     kalman.set_state_covariance(P0)
     return kalman
@@ -100,15 +98,9 @@ def test_get_state_covariance(kalman: KalmanFilter, P0: np.ndarray):
 def test_get_state_estimate(kalman: KalmanFilter, x_hat0: np.ndarray):
     np.testing.assert_array_equal(kalman.get_state_estimate(), x_hat0)
 
-def test_get_process_noise_covariance(kalman: KalmanFilter, Q: np.ndarray):
-    np.testing.assert_array_equal(kalman.get_process_noise_covariance(), Q)
-
-def test_get_measurement_noise_covariance(kalman: KalmanFilter, R: np.ndarray):
-    np.testing.assert_array_equal(kalman.get_measurement_noise_covariance(), R)
-
-def test_update(kalman: KalmanFilter, C: np.ndarray, x0: np.ndarray):
+def test_update(kalman: KalmanFilter, C: np.ndarray, x0: np.ndarray, R: np.ndarray):
     y0 = np.dot(C, x0) + np.array([-0.2979, -0.1403]) - np.dot(C, kalman.get_state_estimate())
-    kalman.update(y0, C)
+    kalman.update(y0, C, R)
 
     np.testing.assert_allclose(kalman.get_state_estimate(), np.array([1.0672, 0.7747, 0.7956, 0.0509]), atol=1e-4, rtol=0.)
     np.testing.assert_allclose(
@@ -123,10 +115,11 @@ def test_update(kalman: KalmanFilter, C: np.ndarray, x0: np.ndarray):
         rtol = 0.
     )
 
-def test_predict(kalman: KalmanFilter, A: np.ndarray, B: np.ndarray, u0: np.ndarray):
-    kalman.predict(A=A, B=B, u=u0)
+def test_predict(kalman: KalmanFilter, A: np.ndarray, B: np.ndarray, u0: np.ndarray, Q: np.ndarray):
+    x_next = np.dot(A, kalman.get_state_estimate()) + np.dot(B, u0)
+    kalman.predict(x_next, A=A, Q=Q)
 
-    np.testing.assert_allclose(kalman.get_state_estimate(), np.array([1.3990, 2.0599, 2.2287, 2.5951]), atol=1e-4, rtol=0.)
+    np.testing.assert_allclose(kalman.get_state_estimate(), x_next, atol=1e-4, rtol=0.)
     np.testing.assert_allclose(
         kalman.get_state_covariance(),
         np.array([
